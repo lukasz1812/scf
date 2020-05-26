@@ -201,7 +201,7 @@ subroutine scf_prog(input)
 
 
 
-write(*,*)
+write(*,*)""
 write(*,*)"       ----------------------Reading an input file-----------------------"
 write(*,*)
 
