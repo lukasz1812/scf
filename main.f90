@@ -789,11 +789,11 @@ subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix
 
 
 call uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix, famatrix, fbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nela,nelb ,fpamatrix,fpbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
-        array=fpmatrix-ipmatrix
+        array=fpamatrix-ipamatrix
         delta=sqrt(sum(array**2)/4)
         write(*,*) Delta, "Delta"
-        ipmatrix=0
-        ipmatrix=fpmatrix
+        ipamatrix=0
+        ipamatrix=fpamatrix
         i=i+1
     !  else
           !  write(*,*)"!!!! System could not be converged"
@@ -894,7 +894,7 @@ end subroutine packing
 
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine new_rFock(hcore,gmatrix,fmatrix)
+subroutine new_Fock(hcore,gmatrix,fmatrix)
 
   !Declaration of local variables
   real(wp) :: hcore(:,:), gmatrix(:,:)
@@ -909,7 +909,7 @@ subroutine new_rFock(hcore,gmatrix,fmatrix)
   write(*,*) "++++++++++++++++++++++  Fock Matrix  ++++++++++++++++++++++++++++++"
   call write_matrix(fmatrix)
 
-end subroutine new_rFock
+end subroutine new_Fock
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 subroutine sym_orthonormalizer(pack_smatrix,orthonormalizer)
@@ -982,7 +982,7 @@ subroutine iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,or
         write(*,*)
   call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
 
-  call new_rFock(hcore,gmatrix,fmatrix)
+  call new_Fock(hcore,gmatrix,fmatrix)
 
   call iHF(nbf,fmatrix,hcore,ipmatrix,fescf)
 
@@ -1512,9 +1512,9 @@ end subroutine new_ugmatrix
  end subroutine uiHF
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nel,famatrix,fbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
+subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix, famatrix, fbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nela,nelb ,fpamatrix,fpbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
 
-  integer :: nbf,ng,nel, i, nocc
+  integer :: nbf,ng,nela, nelb, i, nocc
   real(wp), allocatable :: xyz(:,:)
   real(wp), allocatable :: gamatrix(:,:),gbmatrix(:,:), ipamatrix(:,:),ipbmatrix(:,:), allalpha(:),allcoeff(:)
   real(wp), allocatable :: famatrix(:,:), fbmatrix(:,:), fcamatrix(:,:),fcbmatrix(:,:), orthonormalizer(:,:)
@@ -1541,8 +1541,8 @@ subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamat
 
 
 
-  call  density(nocc,nbf, nel,fcamatrix, fpamatrix)
-    call  density(nocc,nbf, nel,fcbmatrix, fpamatrix)
+  call  density(nocc,nbf, nela,fcamatrix, fpamatrix)
+    call  density(nocc,nbf, nelb,fcbmatrix, fpamatrix)
 
 
 write(*,*) "Electronic energy", fescf
