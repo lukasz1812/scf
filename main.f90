@@ -668,7 +668,7 @@ subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix
   real(wp), allocatable :: pack_smatrix(:), pack_tmatrix(:), pack_vmatrix(:)
   !>Symmetric orthonormalizer packed Matrix
   real(wp), allocatable :: orthonormalizer(:,:)
-  real(wp), allocatable:: fcmatrix(:,:)
+  real(wp), allocatable:: fcamatrix(:,:),fcbmatrix(:,:),gamatrix(:,:),gbmatrix(:,:)
   !>Calculation time variables
   real(wp)  ::start, finish, startscf, finishscf
 
@@ -704,6 +704,8 @@ subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix
       call one_int(ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
 
       !Allocating memmory for some matrices
+      allocate(fcamatrix(nbf,nbf),fcbmatrix(nbf,nbf))
+      allocate(gamatrix(nbf,nbf),gbmatrix(nbf,nbf))
       allocate(gmatrix(nbf,nbf))
       allocate(ipbmatrix(nbf,nbf))
       allocate(fpbmatrix(nbf,nbf))
@@ -776,9 +778,43 @@ subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix
     call density(nocc,nbf, nelb,icbmatrix, ipbmatrix)
 
     !========================== End of initial guess ==================================
+    !=============================End of new Fock Matrix ===============================
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! SCF PROCEDURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    call cpu_time(startscf)
+    delta=1
+    i=1
+    allocate(array(nbf,nbf))
+    do while(delta>0.00001)
 
 
+call uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix, famatrix, fbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nela,nelb ,fpamatrix,fpbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
+        array=fpmatrix-ipmatrix
+        delta=sqrt(sum(array**2)/4)
+        write(*,*) Delta, "Delta"
+        ipmatrix=0
+        ipmatrix=fpmatrix
+        i=i+1
+    !  else
+          !  write(*,*)"!!!! System could not be converged"
+    !  endif
 
+    end do
+    write(*,*)
+    write(*,*)"#################################################################################"
+    write(*,*)"#                         -- End of SCF-Procedure --                            #"
+    write(*,*)"#################################################################################"
+
+    call cpu_time(finishscf)
+    deallocate(array)
+    fescf=fescf+nnrep
+    call cpu_time(finish)
+    write(*,*)
+    write(*,*)"Converged after [s]: ",finishscf-startscf
+    write(*,*)
+    Write(*,*) "final SCF energy",fescf
+    write(*,*)
+    write(*,*)"Total calculation time [s]: ",finish-start
 
 
 end subroutine unrestricted_HF
@@ -1445,25 +1481,25 @@ call write_Matrix(ipmatrix, "Density Matrix")
 end subroutine new_ugmatrix
  !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@q
 
- subroutine uiHF(nbf,famatrix,fbmatrix,hcore,ipamatrix, ipbmatrix,iescf)
+ subroutine uiHF(nbf,gamatrix,gbmatrix,hcore,ipamatrix, ipbmatrix,iescf)
 
      !Declaration of local variables
-     real(wp), allocatable :: faMatrix(:,:),fbMatrix(:,:),ipaMatrix(:,:),ipbMatrix(:,:), hcore(:,:)
+     real(wp), allocatable :: gaMatrix(:,:),gbMatrix(:,:),ipaMatrix(:,:),ipbMatrix(:,:), hcore(:,:)
      integer :: i,j, nbf
      real(wp) :: iescf
      real(wp) :: HFaMatrix(nbf,nbf)
      real(wp) :: HFbMatrix(nbf,nbf)
      iescf=0
 
-     HFaMatrix=hcore+famatrix
-     HFbMatrix=hcore+fbmatrix
+     HFaMatrix=hcore+gamatrix
+     HFbMatrix=hcore+gbmatrix
 
 
          do i=1,nbf
 
            do j=1,nbf
 
-               Iescf=iescf+0.5*(fpamatrix(i,j)*(HFmatrix(j,i))+fpbmatrix(i,j)*(HFbmatrix(j,i)))
+               Iescf=iescf+0.5*(ipamatrix(i,j)*(HFamatrix(j,i))+ipbmatrix(i,j)*(HFbmatrix(j,i)))
 
 
            end do
@@ -1476,13 +1512,13 @@ end subroutine new_ugmatrix
  end subroutine uiHF
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gmatrix,fMatrix,orthonormalizer,fcamatrix,fcbmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
+subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nel,famatrix,fbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
 
   integer :: nbf,ng,nel, i, nocc
   real(wp), allocatable :: xyz(:,:)
-  real(wp), allocatable :: gamatrix(:,:),gbmatrix(:,:), ipmatrix(:,:),allalpha(:),allcoeff(:)
+  real(wp), allocatable :: gamatrix(:,:),gbmatrix(:,:), ipamatrix(:,:),ipbmatrix(:,:), allalpha(:),allcoeff(:)
   real(wp), allocatable :: famatrix(:,:), fbmatrix(:,:), fcamatrix(:,:),fcbmatrix(:,:), orthonormalizer(:,:)
-  real(wp), allocatable :: vMatrix(:,:),tMatrix(:,:),fpMatrix(:,:), hcore(:,:)
+  real(wp), allocatable :: vMatrix(:,:),tMatrix(:,:),fpaMatrix(:,:), fpbmatrix(:,:), hcore(:,:)
   real(wp) :: fescf, nnrep
   fescf=0
         write(*,*)
@@ -1501,11 +1537,12 @@ subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gmatr
     call new_coefficients(famatrix,orthonormalizer,nbf,fcamatrix)
     call new_coefficients(fbmatrix,orthonormalizer,nbf,fcbmatrix)
 
-  call uiHF(nbf,fmatrix,hcore,ipmatrix,fescf)
+ call uiHF(nbf,gamatrix,gbmatrix,hcore,ipamatrix, ipbmatrix,fescf)
 
 
 
-  call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
+  call  density(nocc,nbf, nel,fcamatrix, fpamatrix)
+    call  density(nocc,nbf, nel,fcbmatrix, fpamatrix)
 
 
 write(*,*) "Electronic energy", fescf
