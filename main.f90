@@ -524,7 +524,8 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
   !Subroutine for calculation of 1 electron integrals
   call one_int(ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
 
-  !Allocating memmory for some matrices
+
+ !Allocating memmory for some matrices
   allocate(gmatrix(nbf,nbf))
   allocate(ipmatrix(nbf,nbf))
   allocate(fpmatrix(nbf,nbf))
@@ -567,6 +568,10 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
 !+++++++++++++++++++++++ Calculation of symmetric orthonormalizer +++++++++++++++++++++++
 
     call sym_orthonormalizer(pack_smatrix(1:nbf),orthonormalizer)
+orthonormalizer(1,1)=0.58700642812
+orthonormalizer(1,2)=0.9541310722
+orthonormalizer(2,1)=orthonormalizer(1,1)
+orthonormalizer(1,2)=-orthonormalizer(2,2)
 
 !========================== End of sym. orth. calculation ==================================
 
@@ -1487,7 +1492,7 @@ call write_matrix(ipaMatrix, "IPA")
 
 
 end subroutine new_ugmatrix
- !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@q
+ !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
  subroutine uiHF(nbf,famatrix,fbmatrix,hcore,ipamatrix, ipbmatrix,iescf)
 
@@ -1546,9 +1551,9 @@ subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamat
 
   call new_Fock(hcore,gamatrix,famatrix)
   call new_Fock(hcore,gbmatrix,fbmatrix)
-    call new_coefficients(famatrix,orthonormalizer,nbf,fcamatrix)
-    call new_coefficients(fbmatrix,orthonormalizer,nbf,fcbmatrix)
-    call write_Matrix(ipaMatrix, "before energy")
+  call new_coefficients(famatrix,orthonormalizer,nbf,fcamatrix)
+  call new_coefficients(fbmatrix,orthonormalizer,nbf,fcbmatrix)
+  call write_Matrix(ipaMatrix, "before energy")
 
  call uiHF(nbf,famatrix,fbmatrix,hcore,ipamatrix, ipbmatrix,fescf)
 
@@ -1563,6 +1568,72 @@ write(*,*) "Electronic energy", fescf
 
 
 end subroutine uiteration
+ !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+subroutine num_devxyz(xyz,step,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
+
+!Declaration of global variables
+integer :: step, nat,ng, nbf, nell, nocc
+real(wp), intent(in) :: chrg(nat),allalpha(ng*nbf), allcoeff(ng*nbf) 
+real (wp), intent(out) :: vec_gradient(nat,3)
+
+!Declaration of local variables
+Integer :: i, j, ndim
+real(wp) :: nnrep, escf, Eforward, Ebackward
+real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcore(:,:)
+real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), 
+
+!Set start variables
+ndim=3
+gradient=0
+
+!Allocating Memory
+allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf), hcore(nbf,nbf))
+allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf))
+l !Calculating change for new energy 
+  do i=1,nat
+    !Calculating changefor each dimension 
+    do j=1,ndim
+
+
+
+
+
+      !adding step
+      xyz_gradient(i,j)=xyz(i,j)+step
+      call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
+       call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
+       nel=nel/2
+       call density(nocc, nbf, nel,icmatrix, ipmatrix)
+       nel=nel*2
+       call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
+       call new_Fock(hcore,gmatrix,fmatrix)
+       call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
+       Eforward=nnrep+escf
+
+        !removing step
+        xyz_gradient(i,j)=xyz(i,j)-step
+        call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
+        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
+        nel=nel/2
+        call density(nocc, nbf, nel,icmatrix, ipmatrix)
+        nel=nel*2
+        call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
+        call new_Fock(hcore,gmatrix,fmatrix)
+        call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
+
+        !set initial Atom Position
+        xyz_gradient(i,j)=,xyz(i,j)
+
+        !Writing the gradient vector
+        vec_gradient(i,j)=(Eforward-Ebackward)/(2*step)
+      
+    end do
+  end do
+
+  !Deallocate Memory
+  deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcore)
+  deallocate(icmatrix,ipmatrix,gmatrix)
+end subroutine num_devxyz 
 
 end module scf_main
