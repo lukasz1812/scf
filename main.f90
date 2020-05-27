@@ -1573,26 +1573,26 @@ end subroutine uiteration
 subroutine num_devxyz(xyz,step,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
 
 !Declaration of global variables
-integer :: step, nat,ng, nbf, nell, nocc
-real(wp), intent(in) :: chrg(nat),allalpha(ng*nbf), allcoeff(ng*nbf) 
+integer :: step, nat,ng, nbf, nel, nocc
 real (wp), intent(out) :: vec_gradient(nat,3)
 
 !Declaration of local variables
 Integer :: i, j, ndim
 real(wp) :: nnrep, escf, Eforward, Ebackward
-real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcore(:,:)
-real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), 
+real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcore(:,:), allalpha(:),allcoeff(:)
+real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), fmatrix(:,:), chrg(:), xyz(:,:)
 
 !Set start variables
 ndim=3
-gradient=0
+vec_gradient=0
 
 !Allocating Memory
 allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf), hcore(nbf,nbf))
 allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf))
-l !Calculating change for new energy 
+allocate(fmatrix(nbf,nbf),chrg(nat),xyz(nat,3),allalpha(ng*nbf),allcoeff(ng*nbf))
+ !Calculating change for each atom
   do i=1,nat
-    !Calculating changefor each dimension 
+    !Calculating changefor each dimension
     do j=1,ndim
 
 
@@ -1623,17 +1623,17 @@ l !Calculating change for new energy
         call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
 
         !set initial Atom Position
-        xyz_gradient(i,j)=,xyz(i,j)
+        xyz_gradient(i,j)=xyz(i,j)
 
         !Writing the gradient vector
         vec_gradient(i,j)=(Eforward-Ebackward)/(2*step)
-      
+
     end do
   end do
 
   !Deallocate Memory
   deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcore)
   deallocate(icmatrix,ipmatrix,gmatrix)
-end subroutine num_devxyz 
+end subroutine num_devxyz
 
 end module scf_main
