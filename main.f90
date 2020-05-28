@@ -1576,23 +1576,24 @@ end subroutine uiteration
 subroutine num_devxyz(xyz,step,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
 
 !Declaration of global variables
-integer :: nat,ng, nbf, nel, nocc
+integer, intent(inout) :: nat,ng, nbf, nel, nocc
 real (wp), intent(out) :: vec_gradient(nat,3)
 
 !Declaration of local variables
 Integer :: i, j, ndim
 real(wp) :: nnrep, escf, Eforward, Ebackward, step
-real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcore(:,:), allalpha(:),allcoeff(:)
-real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), fmatrix(:,:), chrg(:), xyz(:,:)
+real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcoreopt(:,:), allalpha(:),allcoeff(:)
+real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), fmatrix(:,:), chrg(:), xyz(:,:), fcmatrix(:,:), fpmatrix(:,:)
 
 !Set start variables
 ndim=3
 vec_gradient=0
 
 !Allocating Memory
-allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf))
-allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf))
+allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf), hcoreopt(nbf,nbf))
+allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf), fcmatrix(nbf,nbf), fpmatrix(nbf,nbf))
 allocate(fmatrix(nbf,nbf))
+
  !Calculating change for each atom
   do i=1,nat
     !Calculating changefor each dimension
@@ -1603,25 +1604,33 @@ allocate(fmatrix(nbf,nbf))
 
 
       !adding step
+             write(*,*) nel, "ELECTRONS"
       xyz_gradient(i,j)=xyz(i,j)+step
       call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
-       call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
-       call density(nocc, nbf, nel,icmatrix, ipmatrix)
-       call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
-       call new_Fock(hcore,gmatrix,fmatrix)
-       call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
+       call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt)
+      call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
+      call new_Fock(hcoreopt,gmatrix,fmatrix)
+      call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
+      nel=nel/2
+      call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
+      nel=nel*2
+
+
+       call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
        Eforward=nnrep+escf
 
         !removing step
         xyz_gradient(i,j)=xyz(i,j)-step
         call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
-        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
-        nel=nel/2
-        call density(nocc, nbf, nel,icmatrix, ipmatrix)
-        nel=nel*2
-        call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
-        call new_Fock(hcore,gmatrix,fmatrix)
-        call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
+        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt)
+       call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
+       call new_Fock(hcoreopt,gmatrix,fmatrix)
+
+       call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
+       nel=nel/2
+       call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
+       nel=nel*2
+       call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
 
         !set initial Atom Position
         xyz_gradient(i,j)=xyz(i,j)
@@ -1633,7 +1642,7 @@ allocate(fmatrix(nbf,nbf))
   end do
 
   !Deallocate Memory
-  deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcore)
+  deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcoreopt)
   deallocate(icmatrix,ipmatrix,gmatrix)
 end subroutine num_devxyz
 
@@ -1643,11 +1652,15 @@ subroutine geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, n
 
 integer :: i, ng,nbf,nel, nocc, nat
 integer, allocatable:: number_Functions(:)
-real(wp), allocatable ::xyz(:,:), chrg(:), allalpha(:), allcoeff(:), vec_gradient(:,:), hcore(:,:)
+real(wp), allocatable ::xyz(:,:), chrg(:), allalpha(:), allcoeff(:), vec_gradient(:,:), hcore(:,:),hcoreopt(:,:)
 real(wp), allocatable ::smatrix(:,:), tmatrix(:,:), vmatrix(:,:)
 real(wp) :: start, stop, value, delta,iescf, fescf, theta, nnrep
 !allocate(hcore(nbf,nbf))
-allocate(vec_gradient(nat,3),smatrix(nbf,nbf), tmatrix(nbf,nbf), vmatrix(nbf,nbf))
+allocate(vec_gradient(nat,3),smatrix(nbf,nbf), tmatrix(nbf,nbf), vmatrix(nbf,nbf), hcoreopt(nbf,nbf))
+
+write(*,*)"Give the optimization value θ"
+read(*,*)theta
+
 call cpu_time(start)
 call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep,nat, number_Functions)
 iescf=fescf
@@ -1668,9 +1681,10 @@ write(*,*)
 
 
 if (i<=26) then
+  write(*,*) nel, "Electrons before opt"
      call num_devxyz(xyz,theta,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
      xyz=xyz+0.4*vec_gradient
-    call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep,nat, number_Functions)
+    call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt, nnrep,nat, number_Functions)
     value=iescf-fescf
     delta=sqrt(value**2)
     write(*,*) Delta, "Delta"
@@ -1702,4 +1716,39 @@ call cpu_time(stop)
 
 end subroutine geo_opt
 
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+subroutine gaussian_prod
+
+  integer :: i, j, nbf, ng
+  allocate(alphaa(ng), alphab(ng), coeffa(ng), coeffb(ng))
+  !Loop over all slater functions
+     do i=1,nbf
+       do j=1,nbf
+
+         !Basisfunctions Mapping
+           coeffa=allcoeff(ng*(i-1)+1:ng*i)
+           coeffb=allcoeff(ng*(j-1)+1:ng*j)
+           alphaa=allalpha(ng*(i-1)+1:ng*i)
+           alphab=allalpha(ng*(j-1)+1:ng*j)
+           call gauss_KAB
+
+           weighted_mean=(alpha*xyz(i)+alphab*xyz(j))/(alphaa+alphab)
+           product=KAB*EXP(-(alphaa+alphab)*(sum(point-weighted_mean))**2)
+           dens_elec(i,j)=dens_elec(i,j)+pmatrix(i,j)*product
+
+end subroutine gaussian_prod
+
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+subroutine gauss_KAB(alphaa,alphab, xyza, xyzb, kab)
+
+  real(wp) :: alphaa, alphab, xyza, xyzb, kab
+
+distance=sqrt((xyza-xyzb**2)
+PI=4.D0*DATAN(1.D0)
+KAB=(((2_wp*alphaa*alphab)/((alphaa+alphab)*pi)**0.75_wp)*EXP((-alpha*alphab)/(alphaa+alphab*(distance)**2))
+
+
+
+end subroutine gauss_KAB
 end module scf_main
