@@ -338,13 +338,20 @@ write(*,*)"|                       -Method Menu-                           |"
 write(*,*)"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 write(*,*)
 write(*,*)"1 Restricted HF (closed shell systems)"
+write(*,*)"      (minimal basis sets STO-NG)"
 write(*,*)"2 Unrestricted HF (opened shell systems)"
+write(*,*)"      (minimal basis sets STO-NG)"
+write(*,*)"3 Geometry optimization"
+write(*,*)"              (using RHF)"
+
 read(*,*)choose
 select case (choose)
 case (1)
    call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep,nat, number_Functions)
  case (2)
     call unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep)
+  case (3)
+     call geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, nnrep)
 end select
 
 
@@ -510,7 +517,7 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
   real(wp), allocatable :: orthonormalizer(:,:)
   real(wp), allocatable:: fcmatrix(:,:)
   !>Calculation time variables
-  real(wp)  ::start, finish, startscf, finishscf
+  real  ::start, finish, startscf, finishscf
 
   real(wp), allocatable :: proove(:,:)
    !Array Matrix for convergence check
@@ -568,10 +575,7 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
 !+++++++++++++++++++++++ Calculation of symmetric orthonormalizer +++++++++++++++++++++++
 
     call sym_orthonormalizer(pack_smatrix(1:nbf),orthonormalizer)
-orthonormalizer(1,1)=0.58700642812
-orthonormalizer(1,2)=0.9541310722
-orthonormalizer(2,1)=orthonormalizer(1,1)
-orthonormalizer(1,2)=-orthonormalizer(2,2)
+
 
 !========================== End of sym. orth. calculation ==================================
 
@@ -617,20 +621,21 @@ i=1
 allocate(array(nbf,nbf))
 do while(delta>0.00001)
 
-call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore,nocc)
+!call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore,nocc)
 
-!if (i<=26) then
+if (i<=26) then
 
-    !call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore)
+    call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
     array=fpmatrix-ipmatrix
     delta=sqrt(sum(array**2)/4)
     write(*,*) Delta, "Delta"
     ipmatrix=0
     ipmatrix=fpmatrix
     i=i+1
-!  else
-      !  write(*,*)"!!!! System could not be converged"
-!  endif
+ else
+        write(*,*)"!!!! System could not be converged !!!!"
+        exit
+  endif
 
 end do
 write(*,*)
@@ -652,7 +657,7 @@ write(*,*)"Total calculation time [s]: ",finish-start
 
 
 
-
+deallocate(gmatrix,ipmatrix,fpmatrix,fmatrix,fcmatrix,hcore, orthonormalizer)
 
 end subroutine restricted_HF
 
@@ -1250,7 +1255,6 @@ real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:)
 
 iPmatrix=0
 
-write(*,*) nel, "electrons"
  do i=1,nbf
 
    do j=1, nbf
@@ -1312,9 +1316,8 @@ call write_Matrix(ipmatrix, "Density Matrix")
 
      do while (u<=final)
 
-       write(*,*)"mulliken before", mulliken_chrg(i), initial
        mulliken_chrg(i)=mulliken_chrg(i)-mlkn(u,u)
-      write(*,*)"mulliken after", mulliken_chrg(i)
+
        u=u+1
 
      end do
@@ -1573,12 +1576,12 @@ end subroutine uiteration
 subroutine num_devxyz(xyz,step,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
 
 !Declaration of global variables
-integer :: step, nat,ng, nbf, nel, nocc
+integer :: nat,ng, nbf, nel, nocc
 real (wp), intent(out) :: vec_gradient(nat,3)
 
 !Declaration of local variables
 Integer :: i, j, ndim
-real(wp) :: nnrep, escf, Eforward, Ebackward
+real(wp) :: nnrep, escf, Eforward, Ebackward, step
 real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcore(:,:), allalpha(:),allcoeff(:)
 real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), fmatrix(:,:), chrg(:), xyz(:,:)
 
@@ -1587,9 +1590,9 @@ ndim=3
 vec_gradient=0
 
 !Allocating Memory
-allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf), hcore(nbf,nbf))
+allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf))
 allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf))
-allocate(fmatrix(nbf,nbf),chrg(nat),xyz(nat,3),allalpha(ng*nbf),allcoeff(ng*nbf))
+allocate(fmatrix(nbf,nbf))
  !Calculating change for each atom
   do i=1,nat
     !Calculating changefor each dimension
@@ -1603,9 +1606,7 @@ allocate(fmatrix(nbf,nbf),chrg(nat),xyz(nat,3),allalpha(ng*nbf),allcoeff(ng*nbf)
       xyz_gradient(i,j)=xyz(i,j)+step
       call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
-       nel=nel/2
        call density(nocc, nbf, nel,icmatrix, ipmatrix)
-       nel=nel*2
        call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
        call new_Fock(hcore,gmatrix,fmatrix)
        call iHF(nbf,fmatrix,hcore,ipmatrix,escf)
@@ -1635,5 +1636,70 @@ allocate(fmatrix(nbf,nbf),chrg(nat),xyz(nat,3),allalpha(ng*nbf),allcoeff(ng*nbf)
   deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcore)
   deallocate(icmatrix,ipmatrix,gmatrix)
 end subroutine num_devxyz
+
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+subroutine geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, nnrep)
+
+integer :: i, ng,nbf,nel, nocc, nat
+integer, allocatable:: number_Functions(:)
+real(wp), allocatable ::xyz(:,:), chrg(:), allalpha(:), allcoeff(:), vec_gradient(:,:), hcore(:,:)
+real(wp), allocatable ::smatrix(:,:), tmatrix(:,:), vmatrix(:,:)
+real(wp) :: start, stop, value, delta,iescf, fescf, theta, nnrep
+!allocate(hcore(nbf,nbf))
+allocate(vec_gradient(nat,3),smatrix(nbf,nbf), tmatrix(nbf,nbf), vmatrix(nbf,nbf))
+call cpu_time(start)
+call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep,nat, number_Functions)
+iescf=fescf
+i=1
+nocc=2
+do while(delta<0.01)
+write(*,*)
+write(*,*)
+write(*,*)"=================================================================="
+write(*,*)"            --- Geometry optimization ---"
+write(*,*)
+write(*,*)"                   Iteration step",i
+write(*,*)" ================================================================="
+write(*,*)
+write(*,*)
+
+
+
+
+if (i<=26) then
+     call num_devxyz(xyz,theta,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
+     xyz=xyz+0.4*vec_gradient
+    call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep,nat, number_Functions)
+    value=iescf-fescf
+    delta=sqrt(value**2)
+    write(*,*) Delta, "Delta"
+    iescf=0
+    iescf=fescf
+    i=i+1
+ else
+        write(*,*)"!!!! System could not be optimized !!!!"
+        exit
+  endif
+end do
+call cpu_time(stop)
+Write(*,*)"+++++++++++++++++++++++++ New Position Matrix [Bohr] +++++++++++++++++++++++++++++"
+write(*,*)
+write(*,*)"    #---------[x]------------------------[y]-----------------------[z]-------"
+!Print Matrix in table form
+i=1
+
+do while(i<=nat)
+  write(*,'(i6)',advance='no') i
+  write(*,*) xyz(i,1:3)
+  write(*,*)
+  i=i+1
+end do
+write(*,*)
+
+
+call cpu_time(stop)
+
+end subroutine geo_opt
 
 end module scf_main
