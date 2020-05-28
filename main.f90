@@ -574,7 +574,7 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
 
 !+++++++++++++++++++++++ Calculation of symmetric orthonormalizer +++++++++++++++++++++++
 
-    call sym_orthonormalizer(pack_smatrix(1:nbf),orthonormalizer)
+    call sym_orthonormalizer(pack_smatrix,orthonormalizer)
 
 
 !========================== End of sym. orth. calculation ==================================
@@ -761,7 +761,7 @@ subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix
 
     !+++++++++++++++++++++++ Calculation of symmetric orthonormalizer +++++++++++++++++++++++
 
-      call sym_orthonormalizer(pack_smatrix(1:nbf),orthonormalizer)
+      call sym_orthonormalizer(pack_smatrix,orthonormalizer)
 
     !========================== End of sym. orth. calculation ==================================
 
@@ -873,11 +873,6 @@ subroutine packing(ndim,matrix,pack_smatrix)
 
 
 !  Symmetry Check
-  if (any(abs(matrix-transpose(matrix))>1.0e-14_wp)) then
-
-    write(*,*) "Matrix is notsymmetric"
-
-  else
 
       j=1
       k=1
@@ -898,7 +893,6 @@ subroutine packing(ndim,matrix,pack_smatrix)
 
         end do
 
-      end if
 
 
 end subroutine packing
@@ -935,7 +929,7 @@ subroutine sym_orthonormalizer(pack_smatrix,orthonormalizer)
 
 
 
-      length=size(pack_smatrix)
+      length=nint(sqrt(8*real(size(pack_smatrix), wp)+1)-1)/2
 
       allocate(Seigen_func(length))
       allocate(v(length,length))
@@ -1188,7 +1182,7 @@ subroutine new_coefficients(fmatrix,orthonormalizer,nbf,icmatrix)
       !Calculating C'Matrix
       allocate(Feigen_func(nbf))
       allocate(v(nbf,nbf))
-      call solve_spev(pack_fmatrix(1:nbf), feigen_func, v)
+      call solve_spev(pack_fmatrix, feigen_func, v)
       v=-v
       write(*,*)
       write(*,*) "++++++++++++++++++++++  c' array  ++++++++++++++++++++++++++++++"
