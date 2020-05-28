@@ -1610,10 +1610,10 @@ allocate(fmatrix(nbf,nbf))
        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt)
       call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
       call new_Fock(hcoreopt,gmatrix,fmatrix)
-      call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
-      nel=nel/2
-      call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
-      nel=nel*2
+  !    call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
+    !  nel=nel/2
+    !  call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
+    !  nel=nel*2
 
 
        call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
@@ -1626,9 +1626,9 @@ allocate(fmatrix(nbf,nbf))
        call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
        call new_Fock(hcoreopt,gmatrix,fmatrix)
 
-       call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
+      ! call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
        nel=nel/2
-       call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
+       !call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
        nel=nel*2
        call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
 
@@ -1717,36 +1717,41 @@ call cpu_time(stop)
 end subroutine geo_opt
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine gaussian_prod
+subroutine gaussian_prod(Allalpha, allcoeff, nbf,ng,pmatrix)
+
+real(wp), allocatable:: alphaa(:), alphab(:), coeffa(:), coeffb(:),allalpha(:), allcoeff(:), xyz(:,:), pmatrix(:,:)
+real(wp):: dens_elec, point(3), KAB, product, weighted_mean(3)
 
   integer :: i, j, nbf, ng
-  allocate(alphaa(ng), alphab(ng), coeffa(ng), coeffb(ng))
+  allocate(alphaa(ng), alphab(ng), coeffa(ng), coeffb(ng), allcoeff(ng*nbf), allalpha(ng*nbf))
   !Loop over all slater functions
      do i=1,nbf
        do j=1,nbf
 
          !Basisfunctions Mapping
-           coeffa=allcoeff(ng*(i-1)+1:ng*i)
-           coeffb=allcoeff(ng*(j-1)+1:ng*j)
-           alphaa=allalpha(ng*(i-1)+1:ng*i)
-           alphab=allalpha(ng*(j-1)+1:ng*j)
-           call gauss_KAB
+           coeffa=allcoeff(ng*(i-1):ng*i)
+           coeffb=allcoeff(ng*(j-1):ng*j)
+           alphaa=allalpha(ng*(i-1):ng*i)
+           alphab=allalpha(ng*(j-1):ng*j)
+           !call gauss_KAB(alphaa,alphab, xyza, xyzb, kab)
 
-           weighted_mean=(alpha*xyz(i)+alphab*xyz(j))/(alphaa+alphab)
-           product=KAB*EXP(-(alphaa+alphab)*(sum(point-weighted_mean))**2)
-           dens_elec(i,j)=dens_elec(i,j)+pmatrix(i,j)*product
+           weighted_mean=(alphaa*xyz(i,1:3)+alphab*xyz(j,1:3))/(alphaa+alphab)
+          ! product=KAB*EXP(-(alphaa+alphab)*(sum(point-weighted_mean))**2)
+           dens_elec=dens_elec+pmatrix(i,j)*product
 
+      end do
+    end do
 end subroutine gaussian_prod
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 subroutine gauss_KAB(alphaa,alphab, xyza, xyzb, kab)
 
-  real(wp) :: alphaa, alphab, xyza, xyzb, kab
+  real(wp) :: alphaa, alphab, xyza, xyzb, kab, distance, pi
 
-distance=sqrt((xyza-xyzb**2)
+distance=sqrt((xyza-xyzb**2))
 PI=4.D0*DATAN(1.D0)
-KAB=(((2_wp*alphaa*alphab)/((alphaa+alphab)*pi)**0.75_wp)*EXP((-alpha*alphab)/(alphaa+alphab*(distance)**2))
+KAB=(((2_wp*alphaa*alphab)/((alphaa+alphab)*pi))**0.75_wp)*EXP((-alphaa*alphab)/(alphaa+alphab*(distance)**2))
 
 
 
