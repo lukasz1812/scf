@@ -347,11 +347,11 @@ write(*,*)"              (using RHF)"
 read(*,*)choose
 select case (choose)
 case (1)
-   call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep,nat, number_Functions)
- case (2)
-    call unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep)
-  case (3)
-     call geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, nnrep)
+1   call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep,nat, number_Functions)
+ !case (2)
+  !  call unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore,nnrep)
+  !case (3)
+!     call geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, nnrep)
 end select
 
 
@@ -529,7 +529,7 @@ subroutine restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,v
   nocc=2
 
   !Subroutine for calculation of 1 electron integrals
-  call one_int(ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
+  call one_int(nel,ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
 
 
  !Allocating memmory for some matrices
@@ -616,16 +616,15 @@ fmatrix=hcore+gmatrix
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! SCF PROCEDURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 call cpu_time(startscf)
-delta=1
+delta=16
 i=1
 allocate(array(nbf,nbf))
 do while(delta>0.00001)
 
-!call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore,nocc)
 
 if (i<=26) then
 
-    call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
+   call iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,orthonormalizer,fcmatrix,nel,fpmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
     array=fpmatrix-ipmatrix
     delta=sqrt(sum(array**2)/4)
     write(*,*) Delta, "Delta"
@@ -661,196 +660,21 @@ deallocate(gmatrix,ipmatrix,fpmatrix,fmatrix,fcmatrix,hcore, orthonormalizer)
 
 end subroutine restricted_HF
 
+
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-subroutine unrestricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep)
+ subroutine one_int(nel,ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
 
-  integer:: ng, nbf,nel, i, Check, nelb, nela
-
-  real(wp) :: delta, fescf, nnrep
-  real(wp),allocatable:: gmatrix(:,:) ,  hcore(:,:)
-  !Declaration of all matrices with β spin
-  real(wp), allocatable :: ipbmatrix(:,:),fpbmatrix(:,:),fbmatrix(:,:),icbmatrix(:,:)
-  !Declaration of all matrices with β spin
-  real(wp), allocatable :: ipamatrix(:,:),fpamatrix(:,:),famatrix(:,:),icamatrix(:,:)
-  real(wp), allocatable :: chrg(:), xyz(:,:), allalpha(:),allcoeff(:)
-  real(WP), allocatable ::smatrix(:,:), tmatrix(:,:), vmatrix(:,:)
-  real(wp), allocatable :: pack_smatrix(:), pack_tmatrix(:), pack_vmatrix(:)
-  !>Symmetric orthonormalizer packed Matrix
-  real(wp), allocatable :: orthonormalizer(:,:)
-  real(wp), allocatable:: fcamatrix(:,:),fcbmatrix(:,:),gamatrix(:,:),gbmatrix(:,:)
-  !>Calculation time variables
-  real(wp)  ::start, finish, startscf, finishscf
-
-  real(wp), allocatable :: proove(:,:)
-   !Array Matrix for convergence check
-  real(wp), allocatable :: array(:,:)
-
-  !Number of electrons in orbital
-  integer :: nocc
-  nocc=1
-
-  !start measure of calculation time
-  call cpu_time(start)
-
-
-  check=mod(nel,2)
-  if (check==1) then
-
-      !Calculating number of electrons with β spin
-      nelb=(nel-1)/2
-      nela=nelb+1
-    else
-      write(*,*)"You chosed a closed shell system"
-      write(*,*) "The energy will be equal to restricted Hartree Fock Calculation"
-      nelb=nel/2
-      nela=nelb
-  endif
-
-      !start measure of calculation time
-      call cpu_time(start)
-
-      !Subroutine for calculation of 1 electron integrals
-      call one_int(ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
-
-      !Allocating memmory for some matrices
-      allocate(fcamatrix(nbf,nbf),fcbmatrix(nbf,nbf))
-      allocate(gamatrix(nbf,nbf),gbmatrix(nbf,nbf))
-      allocate(gmatrix(nbf,nbf))
-      allocate(ipbmatrix(nbf,nbf))
-      allocate(fpbmatrix(nbf,nbf))
-      allocate(fbmatrix(nbf,nbf), icbmatrix(nbf,nbf))
-      !
-      allocate(ipamatrix(nbf,nbf))
-      allocate(fpamatrix(nbf,nbf))
-      allocate(famatrix(nbf,nbf), icamatrix(nbf,nbf))
-      allocate(hcore(nbf,nbf))
-      allocate(orthonormalizer(nbf,nbf))
-
-      !Calculating H_Core
-      hcore=tmatrix+vmatrix
-
-    !////////////////////////   Integrals Check    //////////////////////////////////////
-
-      !Print of all one electron matrices
-      write(*,*)
-      write(*,*) "++++++++++++++++++++++  Overlap Matrix  ++++++++++++++++++++++++++++++"
-      call write_matrix(smatrix)
-      write(*,*)
-      write(*,*) "++++++++++++++++++++++  Kinetic Matrix  ++++++++++++++++++++++++++++++"
-      call write_matrix(tmatrix)
-      write(*,*)
-      write(*,*) "+++++++++++++++++++  Nuc. Attraction Matrix  ++++++++++++++++++++++++"
-      call write_matrix(vmatrix)
-      write(*,*)
-      write(*,*) "++++++++++++++++++++++  Hcore Matrix  ++++++++++++++++++++++++++++++"
-      call write_matrix(hcore)
-    !======================= End one electron integrals check ==========================================
-
-
-    !+++++++++++++++++++ Symmetry check and packin of all symmetric matrices +++++++++++++++++++++
-
-      call packing(nbf,smatrix,pack_smatrix)
-
-      call packing(nbf,tmatrix,pack_tmatrix)
-
-      call packing(nbf,vmatrix,pack_vmatrix)
-
-    !========================== end of packing =========================================
-
-
-    !+++++++++++++++++++++++ Calculation of symmetric orthonormalizer +++++++++++++++++++++++
-
-      call sym_orthonormalizer(pack_smatrix,orthonormalizer)
-
-    !========================== End of sym. orth. calculation ==================================
-
-
-
-    !/////////////////////////////// Print of Orthonormalizer ///////////////////////////////
-      write(*,*)
-      write(*,*) "++++++++++++++++++++++  Sym. Orthonormalizer  ++++++++++++++++++++++++++++++"
-      call write_Matrix(orthonormalizer)
-
-      allocate(proove(nbf,nbf))
-      proove=matmul(smatrix,orthonormalizer)
-      proove=matmul(transpose(orthonormalizer),proove)
-      write(*,*)
-      write(*,*) "++++++++++++++++++ Proove of  Sym. Orthonormalizer  ++++++++++++++++++++++++++++++"
-      call write_matrix(proove)
-      deallocate(proove)
-    !================================ End of print ==================================================
-
-
-
-    !+++++++++++++++++++++++++ Initial guess of density Matrix ++++++++++++++++++++++++++
-    call density(nocc,nbf, nela,icamatrix, ipamatrix)
-    call density(nocc,nbf, nelb,icbmatrix, ipbmatrix)
-
-    !========================== End of initial guess ==================================
-    !=============================End of new Fock Matrix ===============================
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! SCF PROCEDURE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    call cpu_time(startscf)
-    delta=1
-    i=1
-    allocate(array(nbf,nbf))
-    do while(delta>0.00001)
-
-
-call uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix, famatrix, fbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nela,nelb ,fpamatrix,fpbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
-        array=fpamatrix-ipamatrix
-        delta=sqrt(sum(array**2)/4)
-        write(*,*) Delta, "Delta"
-        ipamatrix=0
-        ipamatrix=fpamatrix
-        ipbmatrix=fpbmatrix
-        i=i+1
-    !  else
-          !  write(*,*)"!!!! System could not be converged"
-    !  endif
-
-    end do
-    write(*,*)
-    write(*,*)"#################################################################################"
-    write(*,*)"#                         -- End of SCF-Procedure --                            #"
-    write(*,*)"#################################################################################"
-
-    call cpu_time(finishscf)
-    deallocate(array)
-    fescf=fescf+nnrep
-    call cpu_time(finish)
-    write(*,*)
-    write(*,*)"Converged after [s]: ",finishscf-startscf
-    write(*,*)
-    Write(*,*) "final SCF energy",fescf
-    write(*,*)
-    write(*,*)"Total calculation time [s]: ",finish-start
-
-
-end subroutine unrestricted_HF
-!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
- subroutine one_int(ng,nbf,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore)
-
-   real(wp), allocatable :: xyz(:,:),chrg(:),alphaa(:),alphab(:), coeffa(:),coeffb(:), allalpha(:), allcoeff(:)
+   real(wp), allocatable :: xyz(:,:),chrg(:), allalpha(:), allcoeff(:)
    real(wp),allocatable :: smatrix(:,:), tmatrix(:,:), vmatrix(:,:), hcore(:,:)
-   integer :: i, j, nbf, ng
-   allocate(alphaa(ng), alphab(ng), coeffa(ng), coeffb(ng))
+   integer :: i, j, nbf, ng, nel
    !Loop over all slater functions
       do i=1,nbf
         do j=1,nbf
 
-          !Basisfunctions Mapping
-            coeffa=allcoeff(ng*(i-1)+1:ng*i)
-            coeffb=allcoeff(ng*(j-1)+1:ng*j)
-            alphaa=allalpha(ng*(i-1)+1:ng*i)
-            alphab=allalpha(ng*(j-1)+1:ng*j)
-
             !One electron integral calculation
+          call oneint(transpose(xyz),chrg,xyz(i,1:3),xyz(j,1:3),allalpha(ng*(i-1)+1:ng*i),allalpha(ng*(j-1)+1:ng*j),allcoeff(ng*(i-1)+1:ng*i),allcoeff(ng*(j-1)+1:ng*j),smatrix(i,j),tmatrix(i,j), vmatrix(i,j))
 
-   !allocate(smatrix(nbf,nbf),tmatrix(nbf,nbf), vmatrix(nbf,nbf), hcore(nbf,nbf))
-         call oneint(transpose(xyz),chrg,xyz(i,1:3),xyz(j,1:3),alphaa,alphab,coeffa,coeffb,smatrix(i,j),tmatrix(i,j), vmatrix(i,j))
        end do
      end do
 
@@ -867,7 +691,7 @@ subroutine packing(ndim,matrix,pack_smatrix)
   integer, intent(in) :: ndim
   integer :: i,j,k,  check
   real(wp), allocatable,intent(in) :: matrix (:,:)
-    real(wp), allocatable :: pack_smatrix(:)
+  real(wp), allocatable :: pack_smatrix(:)
 
   allocate(pack_smatrix(ndim*(1+ndim)/2))
 
@@ -960,8 +784,6 @@ subroutine sym_orthonormalizer(pack_smatrix,orthonormalizer)
           end do
           orthonormalizer=matmul(v, eigen_smatrix)
           orthonormalizer=matmul(orthonormalizer,transpose(v))
-      !orthonormalizer=matmul(eigen_smatrix, transpose(v))
-      !orthonormalizer=matmul(v, orthonormalizer)
 
 
 end subroutine sym_orthonormalizer
@@ -989,7 +811,7 @@ subroutine iteration(i, nbf,ng,xyz,allcoeff,allalpha,ipmatrix,gmatrix,fMatrix,or
 
   call new_Fock(hcore,gmatrix,fmatrix)
 
-  call iHF(nbf,fmatrix,hcore,ipmatrix,fescf)
+  call iHF(nel, nbf,fmatrix,hcore,ipmatrix,fescf)
 
   call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
   nel=nel/2
@@ -1014,12 +836,12 @@ subroutine new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
 
         !allocate Memory for the two electrons integral input
         allocate(alphaa(ng))
-        allocate(alphab(ng))
         allocate(coeffa(ng))
+        allocate(alphab(ng))
         allocate(coeffb(ng))
         allocate(alphac(ng))
-        allocate(alphad(ng))
         allocate(coeffc(ng))
+        allocate(alphad(ng))
         allocate(coeffd(ng))
 
         ji=(nbf*(nbf-1)/2+nbf)
@@ -1073,12 +895,12 @@ subroutine new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
 
                     !two electron integrals calculation
                     coeffa=allcoeff(ng*(j-1)+1:ng*j)
-                    coeffb=allcoeff(ng*(i-1)+1:ng*i)
                     alphaa=allalpha(ng*(j-1)+1:ng*j)
+                    coeffb=allcoeff(ng*(i-1)+1:ng*i)
                     alphab=allalpha(ng*(i-1)+1:ng*i)
                     coeffc=allcoeff(ng*(l-1)+1:ng*l)
-                    coeffd=allcoeff(ng*(k-1)+1:ng*k)
                     alphac=allalpha(ng*(l-1)+1:ng*l)
+                    coeffd=allcoeff(ng*(k-1)+1:ng*k)
                     alphad=allalpha(ng*(k-1)+1:ng*k)
 
                     !Two electron integrals subroutine
@@ -1103,6 +925,10 @@ subroutine new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
 
           n=n+1
         end do
+
+call write_Matrix(tei)
+
+
 do j=1,nbf
 do i=1,nbf
   do k=1,nbf
@@ -1166,7 +992,7 @@ end subroutine new_gmatrix
 subroutine new_coefficients(fmatrix,orthonormalizer,nbf,icmatrix)
 
     integer :: nbf
-    real(wp), allocatable :: fmatrix(:,:), icmatrix(:,:), feigen_func(:), v(:,:), pack_fmatrix(:), orthonormalizer(:,:)
+    real(wp), allocatable :: fmatrix(:,:), icmatrix(:,:), feigen_val(:), v(:,:), pack_fmatrix(:), orthonormalizer(:,:)
 
 
       !Calculation of F’ Matrix
@@ -1180,17 +1006,16 @@ subroutine new_coefficients(fmatrix,orthonormalizer,nbf,icmatrix)
       call packing(nbf,icmatrix,pack_fmatrix)
 
       !Calculating C'Matrix
-      allocate(Feigen_func(nbf))
+      allocate(Feigen_val(nbf))
       allocate(v(nbf,nbf))
-      call solve_spev(pack_fmatrix, feigen_func, v)
-      v=-v
+      call solve_spev(pack_fmatrix, feigen_val, v)
       write(*,*)
       write(*,*) "++++++++++++++++++++++  c' array  ++++++++++++++++++++++++++++++"
       call write_matrix(v)
       write(*,*)
       write(*,*) "++++++++++++++++++++++  E Matrix  ++++++++++++++++++++++++++++++"
       write(*,*)
-      write(*,*)feigen_func
+      write(*,*)feigen_val
 
 
 
@@ -1204,11 +1029,11 @@ end subroutine new_coefficients
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@q
 
-subroutine iHF(nbf,fmatrix,hcore,ipmatrix,iescf)
+subroutine iHF(nel,nbf,fmatrix,hcore,ipmatrix,iescf)
 
     !Declaration of local variables
     real(wp), allocatable :: fMatrix(:,:),ipMatrix(:,:), hcore(:,:)
-    integer :: i,j, nbf
+    integer :: i,j, nbf,nel
     real(wp) :: iescf
     real(wp) :: HFMatrix(nbf,nbf)
     iescf=0
@@ -1236,34 +1061,32 @@ subroutine iHF(nbf,fmatrix,hcore,ipmatrix,iescf)
 end subroutine iHF
 
 !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine density(nocc, nbf, nel,icmatrix, ipmatrix)
+subroutine density( nocc, nbf, nel,icmatrix, ipmatrix)
 
 
 
 !Declarataion of local variables
-integer :: nocc
-integer :: nbf, i, j, k,nel
-real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:)
+integer :: nocc, nel
+integer :: nbf, i, j, k
+real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), occ_M(:,:)
+allocate(occ_M(nbf,nbf))
 
 
-
+occ_m=0
 iPmatrix=0
+do i=1,nel
+  do j=1, nel
 
- do i=1,nbf
+    if(i==j) then
+      occ_m(i,j)=nocc
 
-   do j=1, nbf
-     do k=1,nel
+    end if
 
-       iPmatrix(i,j)=iPmatrix(i,j)+nocc*(icmatrix(i,k)*icmatrix(j,k))
-
-
-
-     end do
-
-   end do
-
- end do
-
+  end do
+end do
+call write_Matrix(occ_m, "OCcupation Matrix")
+ipmatrix=matmul(occ_M,transpose(icmatrix))
+ipmatrix=(matmul(icmatrix,ipmatrix))
 call write_Matrix(ipmatrix, "Density Matrix")
 
 
@@ -1278,7 +1101,7 @@ call write_Matrix(ipmatrix, "Density Matrix")
    real(wp), allocatable:: Mulliken_chrg(:), chrg(:)
    integer :: number_functions(:)
    real ::nel
-   allocate(mlkn(nat,nat))
+   allocate(mlkn(nbf,nbf))
 
    mlkn=matmul(ipmatrix,smatrix)
 
@@ -1303,451 +1126,31 @@ call write_Matrix(ipmatrix, "Density Matrix")
   !Mulliken Population Calculation
   do i=1,nat
 
+     initial=initial+number_Functions(i-1)
 
-     initial=initial+chrg(i-1)
-     final=final+chrg(i)
+     final=final+number_Functions(i)
+
      u=initial
 
      do while (u<=final)
 
+mlkn(u,u)=sngl(mlkn(u,u))
+mulliken_chrg(i)=sngl(mulliken_chrg(i))
        mulliken_chrg(i)=mulliken_chrg(i)-mlkn(u,u)
-
        u=u+1
 
      end do
 
    end do
-
- write(*,*)mulliken_chrg, "Mulliken"
+   write(*,*)
+   write(*,*)"      +++  Mulliken Population  +++"
+do i=1, Nat
+  write(*,*)"Atom", i
+  write(*,*)"Charge", mulliken_chrg(i)
+end do
 
  end subroutine mulliken
 
  !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
- subroutine new_ugmatrix(nbf,ng,xyz,allcoeff,allalpha,ipamatrix,ipbmatrix, gmatrix)
-
-   !Local variable
-   integer :: i,j,k,l,m,n, ji, lk, jilk, nbf, ng,max, jl, ik, jlik
-   real(wp), allocatable :: coeffa(:),coeffb(:),coeffc(:),coeffd(:)
-   real(wp), allocatable :: alphaa(:),alphab(:),alphac(:),alphad(:)
-   real(wp), allocatable :: tei(:), dens
-   real(wp), allocatable :: gmatrix(:,:), ipamatrix(:,:),ipbmatrix(:,:), xyz(:,:),allalpha(:),allcoeff(:)      !
-
-         !allocate Memory for the two electrons integral input
-         allocate(alphaa(ng))
-         allocate(alphab(ng))
-         allocate(coeffa(ng))
-         allocate(coeffb(ng))
-         allocate(alphac(ng))
-         allocate(alphad(ng))
-         allocate(coeffc(ng))
-         allocate(coeffd(ng))
-
-         dens=0
-         ji=(nbf*(nbf-1)/2+nbf)
-         jilk=ji*(ji-1)/2+ji
-         allocate(tei(jilk))
-
-
-
-
- !counters set
-       i=1
-       j=1
-       k=1
-       l=1
-       m=0
-       n=0
-
-       gmatrix=0
-
-   do while(n<=m)
-
-       do while(l<=nbf)
-
-         do while(k<=l)
-
-           i=1
-
-
-             do while(i<=nbf)
-
-                 j=1
-
-                   do while(j<=i)
-                     if(l>k) then
-                     lk=l*(l-1)/2+k
-                   ELSE
-                     lk=k*(k-1)/2+l
-                   endif
-
-                   if(j>i)then
-                     ji=j*(j-1)/2+i
-                   else
-                     ji=i*(i-1)/2+j
-                   endif
-                   if (ji>lk) then
-                     jilk=ji*(ji-1)/2+lk
-                   ELSE
-                     jilk=lk*(lk-1)/2+ji
-                   end if
-
-
-                     !two electron integrals calculation
-                     coeffa=allcoeff(ng*(j-1)+1:ng*j)
-                     coeffb=allcoeff(ng*(i-1)+1:ng*i)
-                     alphaa=allalpha(ng*(j-1)+1:ng*j)
-                     alphab=allalpha(ng*(i-1)+1:ng*i)
-                     coeffc=allcoeff(ng*(l-1)+1:ng*l)
-                     coeffd=allcoeff(ng*(k-1)+1:ng*k)
-                     alphac=allalpha(ng*(l-1)+1:ng*l)
-                     alphad=allalpha(ng*(k-1)+1:ng*k)
-
-                     !Two electron integrals subroutine
-                     call twoint(xyz(j,1:3), xyz(i,1:3), xyz(l,1:3), xyz(k,1:3), alphaa, alphab, alphac, alphad, coeffa, coeffb, coeffc, coeffd, tei(jilk))
-
-
-
-                     j=j+1
-                     m=i*j
-                     n=l*k
-
-                   end do
-                   i=i+1
-                 end do
-                 k=k+1
-               end do
-               k=1
-
-               l=l+1
-
-             end do
-
-           n=n+1
-         end do
-call write_matrix(ipaMatrix, "IPA")
-
- do j=1,nbf
- do i=1,nbf
-   do k=1,nbf
-     do l=1, nbf
-
-       if(l>k) then
-       lk=l*(l-1)/2+k
-     ELSE
-       lk=k*(k-1)/2+l
-     endif
-
-     if(j>i)then
-       ji=j*(j-1)/2+i
-     else
-       ji=i*(i-1)/2+j
-     endif
-     if (ji>lk) then
-       jilk=ji*(ji-1)/2+lk
-     ELSE
-       jilk=lk*(lk-1)/2+ji
-     end if
-
-     if(i>k) then
-     ik=i*(i-1)/2+k
-   ELSE
-     ik=k*(k-1)/2+i
-   endif
-
-   if(j>l)then
-     jl=j*(j-1)/2+l
-   else
-     jl=l*(l-1)/2+j
-   endif
-   if (jl>ik) then
-     jlik=jl*(jl-1)/2+ik
-   ELSE
-     jlik=ik*(ik-1)/2+jl
-   end if
-   dens=ipamatrix(l,k)+ipbmatrix(l,k)
-
-
-                         gmatrix(i,j)=gmatrix(i,j)+dens*(tei(jilk))-ipamatrix(l,k)*tei(jlik)
-                         write(*,*) gmatrix(j,i)
-
-     end do
-   end do
-
-
- end do
- end do
-
-
- ! Printing of G-matrix
- write(*,*)
- write(*,*) "++++++++++++++++++++++  G array  ++++++++++++++++++++++++++++++"
- call write_Matrix(Gmatrix)
-
-
-
-
-
-end subroutine new_ugmatrix
- !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
- subroutine uiHF(nbf,famatrix,fbmatrix,hcore,ipamatrix, ipbmatrix,iescf)
-
-     !Declaration of local variables
-     real(wp), allocatable :: faMatrix(:,:),fbMatrix(:,:),ipaMatrix(:,:),ipbMatrix(:,:), hcore(:,:)
-     integer :: i,j, nbf
-     real(wp) :: iescf
-     real(wp) :: HFaMatrix(nbf,nbf)
-     real(wp) :: HFbMatrix(nbf,nbf)
-     iescf=0
-
-     HFaMatrix=hcore+famatrix
-     HFbMatrix=hcore+fbmatrix
-     call write_Matrix(ipamatrix, "before multiplikation")
-     HFamatrix=matmul(ipamatrix,HFamatrix)
-    HFbmatrix=matmul(ipbmatrix,HFbmatrix)
-
-
-
-         do i=1,nbf
-
-           do j=1,nbf
-
-              iescf=iescf+0.5*HFamatrix(j,i)+0.5*HFbmatrix(j,i)
-
-
-           end do
-
-         end do
-         write(*,*)
-     write(*,*)"Electronic energy=", iESCF
-
-
- end subroutine uiHF
-
-!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine uiteration(i, nbf,ng,xyz,allcoeff,allalpha,ipamatrix, ipbmatrix,gamatrix,gbmatrix, famatrix, fbmatrix,orthonormalizer,fcamatrix,fcbmatrix,nela,nelb ,fpamatrix,fpbmatrix,vmatrix,tmatrix,fescf, nnrep, hcore, nocc)
-
-  integer :: nbf,ng,nela, nelb, i, nocc
-  real(wp), allocatable :: xyz(:,:)
-  real(wp), allocatable :: gamatrix(:,:),gbmatrix(:,:), ipamatrix(:,:),ipbmatrix(:,:), allalpha(:),allcoeff(:)
-  real(wp), allocatable :: famatrix(:,:), fbmatrix(:,:), fcamatrix(:,:),fcbmatrix(:,:), orthonormalizer(:,:)
-  real(wp), allocatable :: vMatrix(:,:),tMatrix(:,:),fpaMatrix(:,:), fpbmatrix(:,:), hcore(:,:)
-  real(wp) :: fescf, nnrep
-  fescf=0
-        write(*,*)
-        write(*,*)
-        write(*,*)"=================================================================="
-        write(*,*)
-        write(*,*)"                   Iteration step",i
-        write(*,*)" ================================================================="
-        write(*,*)
-        write(*,*)
-  call new_ugmatrix(nbf,ng,xyz,allcoeff,allalpha,ipamatrix,ipbmatrix, gamatrix)
-  call new_ugmatrix(nbf,ng,xyz,allcoeff,allalpha,ipbmatrix,ipamatrix, gbmatrix)
-
-  call new_Fock(hcore,gamatrix,famatrix)
-  call new_Fock(hcore,gbmatrix,fbmatrix)
-  call new_coefficients(famatrix,orthonormalizer,nbf,fcamatrix)
-  call new_coefficients(fbmatrix,orthonormalizer,nbf,fcbmatrix)
-  call write_Matrix(ipaMatrix, "before energy")
-
- call uiHF(nbf,famatrix,fbmatrix,hcore,ipamatrix, ipbmatrix,fescf)
-
-
-
-  call  density(nocc,nbf, nela,fcamatrix, fpamatrix)
-    call  density(nocc,nbf, nelb,fcbmatrix, fpbmatrix)
-    call write_Matrix(fpbmatrix,"Beta")
-
-
-write(*,*) "Electronic energy", fescf
-
-
-end subroutine uiteration
- !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-subroutine num_devxyz(xyz,step,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
-
-!Declaration of global variables
-integer, intent(inout) :: nat,ng, nbf, nel, nocc
-real (wp), intent(out) :: vec_gradient(nat,3)
-
-!Declaration of local variables
-Integer :: i, j, ndim
-real(wp) :: nnrep, escf, Eforward, Ebackward, step
-real(wp), allocatable :: xyz_gradient(:,:), smatrix(:,:), vmatrix(:,:), tmatrix(:,:), hcoreopt(:,:), allalpha(:),allcoeff(:)
-real(wp), allocatable :: icmatrix(:,:), ipmatrix(:,:), gmatrix(:,:), fmatrix(:,:), chrg(:), xyz(:,:), fcmatrix(:,:), fpmatrix(:,:)
-
-!Set start variables
-ndim=3
-vec_gradient=0
-
-!Allocating Memory
-allocate(xyz_gradient(nat,ndim),smatrix(nbf,nbf),vmatrix(nbf,nbf),tmatrix(nbf,nbf), hcoreopt(nbf,nbf))
-allocate(icmatrix(nbf,nbf),ipmatrix(nbf,nbf),gmatrix(nbf,nbf), fcmatrix(nbf,nbf), fpmatrix(nbf,nbf))
-allocate(fmatrix(nbf,nbf))
-
- !Calculating change for each atom
-  do i=1,nat
-    !Calculating changefor each dimension
-    do j=1,ndim
-
-
-
-
-
-      !adding step
-             write(*,*) nel, "ELECTRONS"
-      xyz_gradient(i,j)=xyz(i,j)+step
-      call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
-       call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt)
-      call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
-      call new_Fock(hcoreopt,gmatrix,fmatrix)
-  !    call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
-    !  nel=nel/2
-    !  call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
-    !  nel=nel*2
-
-
-       call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
-       Eforward=nnrep+escf
-
-        !removing step
-        xyz_gradient(i,j)=xyz(i,j)-step
-        call Nuclei_Rep(nat, xyz_gradient, chrg, nnrep)
-        call one_int(ng,nbf,chrg,xyz_gradient,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt)
-       call new_gmatrix(nbf,ng,xyz,allcoeff, allalpha,ipmatrix, gmatrix)
-       call new_Fock(hcoreopt,gmatrix,fmatrix)
-
-      ! call new_coefficients(fmatrix,orthonormalizer,nbf,fcmatrix)
-       nel=nel/2
-       !call  density(nocc,nbf, nel,fcmatrix, fpmatrix)
-       nel=nel*2
-       call iHF(nbf,fmatrix,hcoreopt,ipmatrix,escf)
-
-        !set initial Atom Position
-        xyz_gradient(i,j)=xyz(i,j)
-
-        !Writing the gradient vector
-        vec_gradient(i,j)=(Eforward-Ebackward)/(2*step)
-
-    end do
-  end do
-
-  !Deallocate Memory
-  deallocate(xyz_gradient,smatrix,vmatrix,tmatrix, hcoreopt)
-  deallocate(icmatrix,ipmatrix,gmatrix)
-end subroutine num_devxyz
-
-!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-subroutine geo_opt(ng,nbf,xyz,nel,chrg,allalpha,allcoeff,nat,number_functions, nnrep)
-
-integer :: i, ng,nbf,nel, nocc, nat
-integer, allocatable:: number_Functions(:)
-real(wp), allocatable ::xyz(:,:), chrg(:), allalpha(:), allcoeff(:), vec_gradient(:,:), hcore(:,:),hcoreopt(:,:)
-real(wp), allocatable ::smatrix(:,:), tmatrix(:,:), vmatrix(:,:)
-real(wp) :: start, stop, value, delta,iescf, fescf, theta, nnrep
-!allocate(hcore(nbf,nbf))
-allocate(vec_gradient(nat,3),smatrix(nbf,nbf), tmatrix(nbf,nbf), vmatrix(nbf,nbf), hcoreopt(nbf,nbf))
-
-write(*,*)"Give the optimization value θ"
-read(*,*)theta
-
-call cpu_time(start)
-call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcore, nnrep,nat, number_Functions)
-iescf=fescf
-i=1
-nocc=2
-do while(delta<0.01)
-write(*,*)
-write(*,*)
-write(*,*)"=================================================================="
-write(*,*)"            --- Geometry optimization ---"
-write(*,*)
-write(*,*)"                   Iteration step",i
-write(*,*)" ================================================================="
-write(*,*)
-write(*,*)
-
-
-
-
-if (i<=26) then
-  write(*,*) nel, "Electrons before opt"
-     call num_devxyz(xyz,theta,nat, chrg,ng,nbf,nel, allalpha, allcoeff,nocc, vec_gradient )
-     xyz=xyz+0.4*vec_gradient
-    call restricted_HF(ng,nbf,nel,chrg,xyz,allalpha,allcoeff,smatrix,tmatrix,vmatrix, hcoreopt, nnrep,nat, number_Functions)
-    value=iescf-fescf
-    delta=sqrt(value**2)
-    write(*,*) Delta, "Delta"
-    iescf=0
-    iescf=fescf
-    i=i+1
- else
-        write(*,*)"!!!! System could not be optimized !!!!"
-        exit
-  endif
-end do
-call cpu_time(stop)
-Write(*,*)"+++++++++++++++++++++++++ New Position Matrix [Bohr] +++++++++++++++++++++++++++++"
-write(*,*)
-write(*,*)"    #---------[x]------------------------[y]-----------------------[z]-------"
-!Print Matrix in table form
-i=1
-
-do while(i<=nat)
-  write(*,'(i6)',advance='no') i
-  write(*,*) xyz(i,1:3)
-  write(*,*)
-  i=i+1
-end do
-write(*,*)
-
-
-call cpu_time(stop)
-
-end subroutine geo_opt
-
-!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-subroutine gaussian_prod(Allalpha, allcoeff, nbf,ng,pmatrix)
-
-real(wp), allocatable:: alphaa(:), alphab(:), coeffa(:), coeffb(:),allalpha(:), allcoeff(:), xyz(:,:), pmatrix(:,:)
-real(wp):: dens_elec, point(3), KAB, product, weighted_mean(3)
-
-  integer :: i, j, nbf, ng
-  allocate(alphaa(ng), alphab(ng), coeffa(ng), coeffb(ng), allcoeff(ng*nbf), allalpha(ng*nbf))
-  !Loop over all slater functions
-     do i=1,nbf
-       do j=1,nbf
-
-         !Basisfunctions Mapping
-           coeffa=allcoeff(ng*(i-1):ng*i)
-           coeffb=allcoeff(ng*(j-1):ng*j)
-           alphaa=allalpha(ng*(i-1):ng*i)
-           alphab=allalpha(ng*(j-1):ng*j)
-           !call gauss_KAB(alphaa,alphab, xyza, xyzb, kab)
-
-           weighted_mean=(alphaa*xyz(i,1:3)+alphab*xyz(j,1:3))/(alphaa+alphab)
-          ! product=KAB*EXP(-(alphaa+alphab)*(sum(point-weighted_mean))**2)
-           dens_elec=dens_elec+pmatrix(i,j)*product
-
-      end do
-    end do
-end subroutine gaussian_prod
-
-!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-subroutine gauss_KAB(alphaa,alphab, xyza, xyzb, kab)
-
-  real(wp) :: alphaa, alphab, xyza, xyzb, kab, distance, pi
-
-distance=sqrt((xyza-xyzb**2))
-PI=4.D0*DATAN(1.D0)
-KAB=(((2_wp*alphaa*alphab)/((alphaa+alphab)*pi))**0.75_wp)*EXP((-alphaa*alphab)/(alphaa+alphab*(distance)**2))
-
-
-
-end subroutine gauss_KAB
 end module scf_main
