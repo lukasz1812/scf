@@ -968,7 +968,7 @@ do i=1,nbf
     jlik=ik*(ik-1)/2+jl
   end if
 
-                        gmatrix(i,j)=gmatrix(i,j)+ipmatrix(l,k)*(tei(jilk)-0.5*tei(jlik))
+                        gmatrix(j,i)=gmatrix(j,i)+ipmatrix(l,k)*(tei(jilk)-0.5*tei(jlik))
 
     end do
   end do
